@@ -1,0 +1,207 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Miga Mining</title>
+  <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      background-color: #002740;
+      font-family: sans-serif;
+      color: #fff;
+      padding-bottom: 70px;
+      text-align: center;
+    }
+    .plan-title {
+      font-weight: bold;
+      font-size: 18px;
+      margin: 20px 0 10px;
+    }
+    #ton-connect {
+      margin: 15px auto;
+      display: flex;
+      justify-content: center;
+    }
+    .circle-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0 10px;
+      gap: 30px;
+    }
+    .plan-row {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 400px;
+      gap: 180px;
+    }
+    .centered-row {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+    .circle-card {
+      width: 85px;
+      height: 85px;
+      background-color: #014a7f;
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-size: 11px;
+      padding: 6px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.3);
+      position: relative;
+      transition: transform 0.3s;
+      margin: 0 5px;
+      cursor: pointer;
+    }
+    .circle-card:hover {
+      transform: scale(1.05);
+    }
+    .special {
+      background: linear-gradient(135deg, #b64fc8, #7a28a8);
+      box-shadow: 0 0 20px rgba(182, 79, 200, 0.6);
+    }
+    .badge {
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      background-color: gold;
+      color: #000;
+      font-size: 8px;
+      padding: 2px 5px;
+      border-radius: 10px;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+    .circle-title {
+      font-weight: bold;
+      margin-bottom: 2px;
+      font-size: 12px;
+    }
+    #mining-timer {
+      margin-top: 20px;
+      font-size: 18px;
+      font-weight: bold;
+      color: #00ffcc;
+    }
+  </style>
+</head>
+<body>
+  <div class="plan-title">Connect Wallet First 👇</div>
+  <div id="ton-connect"></div>  <div class="plan-title">Choose Your Mining Plan</div>
+  <div class="circle-wrapper">
+    <div class="plan-row">
+      <div class="circle-card" onclick="handlePlanClick(0.5, 7)">
+        <div class="circle-title">7d</div>
+        <div>0.5 TON</div>
+        <div>×1</div>
+      </div>
+      <div class="circle-card" onclick="handlePlanClick(0.75, 15)">
+        <div class="circle-title">15d</div>
+        <div>0.75 TON</div>
+        <div>×1.5</div>
+      </div>
+    </div>
+    <div class="centered-row">
+      <div class="circle-card special" onclick="handlePlanClick(1, 30)">
+        <div class="badge">Most Popular</div>
+        <div class="circle-title">30d</div>
+        <div>1 TON</div>
+        <div>×2</div>
+      </div>
+    </div>
+    <div class="plan-row">
+      <div class="circle-card" onclick="handlePlanClick(1.5, 60)">
+        <div class="circle-title">60d</div>
+        <div>1.5 TON</div>
+        <div>×3</div>
+      </div>
+      <div class="circle-card" onclick="handlePlanClick(2, 90)">
+        <div class="circle-title">90d</div>
+        <div>2 TON</div>
+        <div>×4</div>
+      </div>
+    </div>
+  </div>  <div id="mining-timer"></div>  <script>
+    const recipient = "0QDqFUysx4MZhIhjE-f5xPAenlr9qdD4Gh_f-_6VJA3sFMGx";
+    const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+      manifestUrl: "https://ibrahimbosra.github.io/Pay/tonconnect-manifest.json",
+      buttonRootId: "ton-connect"
+    });
+
+    let walletAddress = null;
+
+    tonConnectUI.onStatusChange((walletInfo) => {
+      if (walletInfo?.account?.address) {
+        walletAddress = walletInfo.account.address;
+      } else {
+        walletAddress = null;
+      }
+    });
+
+    function handlePlanClick(priceTon, durationDays) {
+      if (!walletAddress) {
+        alert("Please connect your wallet first.");
+        return;
+      }
+
+      const nanoAmount = Math.floor(priceTon * 1_000_000_000);
+      const expectedTxKey = `${recipient}_${nanoAmount}`;
+      const explorerAPI = `https://testnet.tonapi.io/v2/blockchain/accounts/${recipient}/events`;
+
+      window.open(`ton://transfer/${recipient}?amount=${nanoAmount}&text=Miga%20Mining`, "_blank");
+      const timerText = document.getElementById("mining-timer");
+      timerText.innerText = "Waiting for payment confirmation...";
+
+      const checkInterval = setInterval(async () => {
+        try {
+          const res = await fetch(explorerAPI);
+          const data = await res.json();
+
+          const paid = data.events.some(event =>
+            event.actions?.some(action =>
+              action.simple_preview?.name === "Ton transfer" &&
+              action.simple_preview?.value === `${priceTon} TON`
+            ) && event.incomingTx?.source === walletAddress
+          );
+
+          if (paid) {
+            clearInterval(checkInterval);
+            startMining(durationDays);
+          }
+        } catch (err) {
+          console.error("Failed to fetch payment status", err);
+        }
+      }, 10000);
+    }
+
+    function startMining(days) {
+      const timerText = document.getElementById("mining-timer");
+      const endTime = Date.now() + days * 24 * 60 * 60 * 1000;
+
+      function updateTimer() {
+        const now = Date.now();
+        const diff = endTime - now;
+
+        if (diff <= 0) {
+          timerText.innerText = "Mining finished!";
+          return;
+        }
+
+        const daysLeft = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hoursLeft = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutesLeft = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        timerText.innerText = `Mining: ${daysLeft}d ${hoursLeft}h ${minutesLeft}m left`;
+
+        setTimeout(updateTimer, 60000);
+      }
+
+      updateTimer();
+    }
+  </script></body>
+  </html>
